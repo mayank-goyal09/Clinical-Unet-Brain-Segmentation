@@ -1,0 +1,5 @@
+Brain_Data_Clean/
+Brain_Data_Clean.zip
+__pycache__/
+.ipynb_checkpoints/
+*.pyc

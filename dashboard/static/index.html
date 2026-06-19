@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical PACS Workstation - Brain Tumor Segmentation</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <i data-lucide="activity" class="logo-icon"></i>
+                <div class="brand">
+                    <h1>CORTEX-AI</h1>
+                    <span>Medical Imaging Workspace v1.0.0</span>
+                </div>
+            </div>
+            <div class="header-controls">
+                <button class="btn btn-secondary theme-toggle-btn" id="theme-toggle" title="Toggle Theme">
+                    <i data-lucide="sun" id="theme-icon"></i>
+                    <span id="theme-text">Warm White</span>
+                </button>
+                <div class="system-status">
+                    <span class="status-indicator online"></span>
+                    <span class="status-text">U-NET CORE ACTIVE (DSC: 0.8635)</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Grid -->
+        <main class="workspace-grid">
+            
+            <!-- Left Panel: Case Directory -->
+            <section class="panel panel-left glass-card">
+                <div class="panel-header">
+                    <i data-lucide="folder-heart" class="panel-icon"></i>
+                    <h2>Patient Registry</h2>
+                </div>
+                
+                <!-- Case Search/Filter -->
+                <div class="search-box">
+                    <i data-lucide="search" class="search-icon"></i>
+                    <input type="text" id="case-search" placeholder="Search patient ID...">
+                </div>
+
+                <!-- Case List (Scrollable) -->
+                <div class="case-list-wrapper">
+                    <ul class="case-list" id="case-list">
+                        <!-- Populated by JS -->
+                        <div class="list-placeholder">
+                            <div class="spinner"></div>
+                            <span>Scanning directory...</span>
+                        </div>
+                    </ul>
+                </div>
+
+                <!-- File Upload Zone -->
+                <div class="upload-zone" id="upload-zone">
+                    <i data-lucide="upload-cloud" class="upload-icon"></i>
+                    <p class="upload-title">Ingest Custom MRI Scan</p>
+                    <p class="upload-subtitle">Drag & drop .npy or image slice</p>
+                    <input type="file" id="file-input" accept=".npy,image/*" style="display: none;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                </div>
+            </section>
+
+            <!-- Center Panel: PACS Viewport -->
+            <section class="panel panel-center glass-card">
+                <div class="viewport-header">
+                    <div class="case-details">
+                        <i data-lucide="scan-line" class="viewport-icon"></i>
+                        <div>
+                            <h3 id="active-case-name">Patient BRATS-001</h3>
+                            <span id="active-case-specs">Sequence: FLAIR • Slices: 128x128px</span>
+                        </div>
+                    </div>
+                    <!-- Viewport Controls -->
+                    <div class="viewport-controls">
+                        <label class="control-toggle">
+                            <input type="checkbox" id="toggle-prediction" checked>
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-label">AI Segmentation</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" id="toggle-gt" checked>
+                            <span class="toggle-slider gt-theme"></span>
+                            <span class="toggle-label">Ground Truth</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Main Image Workspace -->
+                <div class="viewport-canvas-container">
+                    <div class="viewport-canvas" id="viewport-canvas">
+                        <!-- Base MRI Image -->
+                        <img id="mri-image" class="canvas-layer base-layer" src="" alt="MRI Scan" style="display: none;">
+                        
+                        <!-- Ground Truth Mask (Semi-transparent overlay) -->
+                        <img id="gt-image" class="canvas-layer overlay-layer gt-mask" src="" alt="Ground Truth Overlay" style="display: none;">
+                        
+                        <!-- AI Prediction Mask (Semi-transparent overlay, clipped) -->
+                        <img id="pred-image" class="canvas-layer overlay-layer pred-mask" src="" alt="AI Prediction Overlay" style="display: none;">
+
+                        <!-- Glowing scanline simulation during analysis -->
+                        <div class="scanline" id="scanline"></div>
+
+                        <!-- Canvas Loading Overlay -->
+                        <div class="canvas-loader" id="canvas-loader">
+                            <div class="scanner-glow"></div>
+                            <span class="loader-text">RUNNING SEGMENTATION...</span>
+                        </div>
+                        
+                        <!-- Empty State -->
+                        <div class="empty-state" id="empty-state">
+                            <i data-lucide="file-warning"></i>
+                            <p>No slice selected. Select a patient case to begin.</p>
+                        </div>
+
+                        <!-- Interactive Swipe Controller (Custom Overlay Slider inside the Canvas) -->
+                        <div class="swipe-controller-bar" id="swipe-bar">
+                            <div class="swipe-handle">
+                                <i data-lucide="chevrons-left-right"></i>
+                            </div>
+                        </div>
+                        <input type="range" id="swipe-range" class="swipe-range" min="0" max="100" value="50">
+                    </div>
+                    
+                    <!-- Slider Label -->
+                    <div class="slider-hint">
+                        <span>Original MRI</span>
+                        <span>AI Overlay</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Diagnostics & Performance HUD -->
+            <section class="panel panel-right glass-card">
+                <div class="panel-header">
+                    <i data-lucide="gauge" class="panel-icon"></i>
+                    <h2>Diagnostics HUD</h2>
+                </div>
+
+                <!-- Dice Coefficient Gauge -->
+                <div class="dice-gauge-container">
+                    <div class="dice-circle-wrapper">
+                        <svg class="dice-circle-svg" viewBox="0 0 100 100">
+                            <circle class="circle-bg" cx="50" cy="50" r="45"></circle>
+                            <circle class="circle-progress" id="dice-progress" cx="50" cy="50" r="45" stroke-dasharray="282.7" stroke-dashoffset="282.7"></circle>
+                        </svg>
+                        <div class="dice-value-overlay">
+                            <span id="dice-value">0.00%</span>
+                            <span class="label">Dice Score</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Lists -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="metric-label">TUMOR DETECTION</span>
+                        <span class="metric-val" id="val-detection">SUSPICIOUS</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">AI DETECTED AREA</span>
+                        <span class="metric-val" id="val-ai-area">0 px</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">GROUND TRUTH AREA</span>
+                        <span class="metric-val" id="val-gt-area">0 px</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">ANALYSIS DELAY</span>
+                        <span class="metric-val" id="val-delay">0.0 ms</span>
+                    </div>
+                </div>
+
+                <!-- Report Section -->
+                <div class="report-section">
+                    <div class="report-box">
+                        <h3>Clinical Findings Summary</h3>
+                        <p id="clinical-summary">
+                            Select a patient scan case from the left panel to load and evaluate the segmentation.
+                        </p>
+                    </div>
+                    <button class="btn btn-primary btn-block" id="btn-report" disabled>
+                        <i data-lucide="file-text"></i> Generate Diagnostic Report
+                    </button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Script Entrypoint -->
+    <script>
+        // Initialize lucide icons
+        lucide.createIcons();
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>

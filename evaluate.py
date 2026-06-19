@@ -1,8 +1,21 @@
 import os
+import sys
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import models, backend as K
 from tensorflow.keras.utils import Sequence
+
+# Set console encoding to UTF-8 on Windows to avoid UnicodeEncodeError when printing emojis
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Fallback for Python versions that don't support reconfigure (though 3.13 does)
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 
 # --- 1. THE RECIPES (Custom Metrics) ---
 def dice_coef(y_true, y_pred):

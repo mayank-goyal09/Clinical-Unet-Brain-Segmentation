@@ -1,5 +1,6 @@
 // DOM Elements
 const caseList = document.getElementById('case-list');
+const caseListWrapper = document.querySelector('.case-list-wrapper');
 const caseSearch = document.getElementById('case-search');
 const activeCaseName = document.getElementById('active-case-name');
 const activeCaseSpecs = document.getElementById('active-case-specs');
@@ -41,7 +42,11 @@ const themeText = document.getElementById('theme-text');
 
 // App State
 let allCases = [];
+let currentCases = []; // Currently filtered/displayed cases
 let activeCaseData = null;
+let renderedCount = 0;
+const BATCH_SIZE = 100;
+const caseCache = new Map(); // Client-side cache to make case switching instant
 
 // API Endpoints
 const API_BASE = window.location.origin;
@@ -52,14 +57,15 @@ async function init() {
         const response = await fetch(`${API_BASE}/api/cases`);
         if (!response.ok) throw new Error("Failed to load patient cases.");
         
-        allCases = await response.ok ? await response.json() : [];
+        allCases = await response.json();
+        currentCases = allCases;
         
         if (allCases.length === 0) {
             caseList.innerHTML = `<div class="list-placeholder">No cleaned patient files found.</div>`;
             return;
         }
 
-        renderCases(allCases);
+        renderCases(currentCases);
         
         // Load first case as default
         loadCase(allCases[0].id);
@@ -67,40 +73,88 @@ async function init() {
     } catch (err) {
         console.error("Init Error:", err);
         caseList.innerHTML = `<div class="list-placeholder"><i data-lucide="alert-circle" style="color: var(--accent-red)"></i><span>Could not connect to API.</span></div>`;
-        lucide.createIcons();
+        if (window.lucide) {
+            lucide.createIcons();
+        }
     }
 }
 
-function renderCases(cases) {
-    caseList.innerHTML = '';
-    cases.forEach(c => {
+// Render cases incrementally (lazy rendering / infinite scroll)
+function renderCases(cases, append = false) {
+    if (!append) {
+        caseList.innerHTML = '';
+        renderedCount = 0;
+    }
+    
+    const limit = Math.min(renderedCount + BATCH_SIZE, cases.length);
+    const slice = cases.slice(renderedCount, limit);
+    
+    slice.forEach(c => {
         const li = document.createElement('li');
         li.className = 'case-item';
+        // Preserve active styling if this item is currently selected
+        if (activeCaseData && activeCaseData.case_id === c.id) {
+            li.classList.add('active');
+        }
         li.dataset.id = c.id;
         li.innerHTML = `
             <h4>${c.name}</h4>
             <span>ID: ${c.id}</span>
         `;
         li.addEventListener('click', () => {
-            // Deselect others
-            document.querySelectorAll('.case-item').forEach(item => item.classList.remove('active'));
+            // Deselect previous active item instantly using O(1) query
+            const activeItem = caseList.querySelector('.case-item.active');
+            if (activeItem) {
+                activeItem.classList.remove('active');
+            }
             li.classList.add('active');
             loadCase(c.id);
         });
         caseList.appendChild(li);
     });
+    
+    renderedCount = limit;
 }
+
+// Infinite scroll trigger when scrolling the case list sidebar
+caseListWrapper.addEventListener('scroll', () => {
+    // If scrolled within 80px of the bottom, load next batch
+    if (caseListWrapper.scrollTop + caseListWrapper.clientHeight >= caseListWrapper.scrollHeight - 80) {
+        if (renderedCount < currentCases.length) {
+            renderCases(currentCases, true);
+        }
+    }
+});
 
 // Case Search Filtering
 caseSearch.addEventListener('input', (e) => {
     const term = e.target.value.toLowerCase();
-    const filtered = allCases.filter(c => c.name.toLowerCase().includes(term) || c.id.toLowerCase().includes(term));
-    renderCases(filtered);
+    currentCases = allCases.filter(c => c.name.toLowerCase().includes(term) || c.id.toLowerCase().includes(term));
+    renderCases(currentCases);
 });
 
 // 2. Load Patient Case Data
 let currentAbortController = null;
 async function loadCase(caseId) {
+    // Check client-side cache first to make switching instant
+    if (caseCache.has(caseId)) {
+        const cachedData = caseCache.get(caseId);
+        activeCaseData = cachedData;
+        
+        // Update active class in sidebar (O(1) search)
+        const previousActive = caseList.querySelector('.case-item.active');
+        if (previousActive) {
+            previousActive.classList.remove('active');
+        }
+        const currentActive = caseList.querySelector(`.case-item[data-id="${caseId}"]`);
+        if (currentActive) {
+            currentActive.classList.add('active');
+        }
+        
+        displayCase(cachedData, 0.0); // 0ms delay from memory cache
+        return;
+    }
+
     // Abort previous pending fetch requests to prevent queueing lag on the server
     if (currentAbortController) {
         currentAbortController.abort();
@@ -119,15 +173,21 @@ async function loadCase(caseId) {
         const data = await response.json();
         const endTime = performance.now();
         
+        // Cache the loaded slice data
+        caseCache.set(caseId, data);
+        
         activeCaseData = data;
-        const latency = (endTime - startTime); // Use exact latency without adding simulation jitter
+        const latency = (endTime - startTime);
 
-        // Update active class in sidebar
-        document.querySelectorAll('.case-item').forEach(item => {
-            if (item.dataset.id === caseId) {
-                item.classList.add('active');
-            }
-        });
+        // Update active class in sidebar (O(1) search)
+        const previousActive = caseList.querySelector('.case-item.active');
+        if (previousActive) {
+            previousActive.classList.remove('active');
+        }
+        const currentActive = caseList.querySelector(`.case-item[data-id="${caseId}"]`);
+        if (currentActive) {
+            currentActive.classList.add('active');
+        }
 
         displayCase(data, latency);
         currentAbortController = null;

@@ -65,6 +65,25 @@ print("✅ Model loaded successfully!")
 IMAGE_DIR = 'Brain_Data_Clean/images'
 MASK_DIR = 'Brain_Data_Clean/masks'
 
+# Build in-memory case list cache at startup
+print("📁 Pre-loading and caching case registry...")
+CASES_CACHE = []
+if os.path.exists(IMAGE_DIR):
+    _files = sorted([f for f in os.listdir(IMAGE_DIR) if f.endswith('.npy')])
+    for file in _files:
+        case_id = file[:-4]  # Remove '.npy'
+        parts = case_id.split('_')
+        if len(parts) >= 3:
+            patient_num = parts[1]
+            slice_num = parts[2].replace('slice', '')
+            name = f"Patient BRATS-{patient_num} (Slice {slice_num})"
+        else:
+            name = case_id
+        CASES_CACHE.append({"id": case_id, "name": name})
+    print(f"✅ Cached {len(CASES_CACHE)} cases.")
+else:
+    print("⚠️ WARNING: Clean data directory not found at startup.")
+
 def array_to_base64_png(arr: np.ndarray, is_mask: bool = False, color: list = None) -> str:
     """Converts a 2D numpy array to a base64 encoded PNG string."""
     if is_mask:
@@ -86,25 +105,10 @@ def array_to_base64_png(arr: np.ndarray, is_mask: bool = False, color: list = No
 
 @app.get("/api/cases")
 def get_cases():
-    """Lists all available patient cases from the cleaned directory."""
+    """Lists all available patient cases from the cached registry."""
     if not os.path.exists(IMAGE_DIR):
         raise HTTPException(status_code=404, detail="Clean data directory not found. Please run data_clean.py.")
-    
-    files = sorted([f for f in os.listdir(IMAGE_DIR) if f.endswith('.npy')])
-    cases = []
-    for file in files:
-        case_id = file[:-4]  # Remove '.npy'
-        # Parse patient code and slice number for professional display
-        # e.g., 'BRATS_001_slice72' -> Patient BRATS-001 (Slice 72)
-        parts = case_id.split('_')
-        if len(parts) >= 3:
-            patient_num = parts[1]
-            slice_num = parts[2].replace('slice', '')
-            name = f"Patient BRATS-{patient_num} (Slice {slice_num})"
-        else:
-            name = case_id
-        cases.append({"id": case_id, "name": name})
-    return cases
+    return CASES_CACHE
 
 # In-memory prediction cache to eliminate CPU latency during case switching
 PREDICTION_CACHE = {}

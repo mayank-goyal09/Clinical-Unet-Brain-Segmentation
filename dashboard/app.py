@@ -65,6 +65,12 @@ print("✅ Model loaded successfully!")
 IMAGE_DIR = 'Brain_Data_Clean/images'
 MASK_DIR = 'Brain_Data_Clean/masks'
 
+# Fallback to sample data if full clean data is missing
+if not os.path.exists(IMAGE_DIR):
+    print("📁 Fallback: using sample data registry...")
+    IMAGE_DIR = 'sample_data/images'
+    MASK_DIR = 'sample_data/masks'
+
 # Build in-memory case list cache at startup
 print("📁 Pre-loading and caching case registry...")
 CASES_CACHE = []
@@ -82,7 +88,8 @@ if os.path.exists(IMAGE_DIR):
         CASES_CACHE.append({"id": case_id, "name": name})
     print(f"✅ Cached {len(CASES_CACHE)} cases.")
 else:
-    print("⚠️ WARNING: Clean data directory not found at startup.")
+    print("⚠️ WARNING: Neither clean data nor sample data directories were found.")
+
 
 def array_to_base64_png(arr: np.ndarray, is_mask: bool = False, color: list = None) -> str:
     """Converts a 2D numpy array to a base64 encoded PNG string."""

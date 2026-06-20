@@ -1021,3 +1021,54 @@ body.theme-warm {
     background: rgba(0, 0, 0, 0.15);
 }
 
+/* --- Hugging Face Spaces & Small Viewport Scroll Compatibility --- */
+@media (max-height: 850px), (max-width: 1200px) {
+    body {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+    
+    .app-container {
+        height: auto !important;
+        min-height: 100vh !important;
+        padding-bottom: 40px !important; /* Extra bottom breathing room */
+    }
+    
+    .workspace-grid {
+        height: auto !important;
+        overflow: visible !important;
+        grid-template-columns: 1fr; /* Stack panels vertically on very narrow screens */
+        gap: 20px !important;
+    }
+    
+    /* On wider but short screens (like standard laptops), keep the 3-column layout but allow page scrolling */
+    @media (min-width: 1101px) {
+        .workspace-grid {
+            grid-template-columns: 320px 1fr 340px !important;
+        }
+    }
+    
+    .panel {
+        height: auto !important;
+        overflow: visible !important;
+        min-height: auto !important;
+    }
+    
+    /* Limit case list height so it doesn't expand infinitely */
+    .case-list-wrapper {
+        max-height: 250px !important;
+        border-bottom: 1px solid var(--panel-border) !important;
+        margin-bottom: 10px !important;
+    }
+    
+    /* Make center canvas resize cleanly */
+    .viewport-canvas {
+        max-width: 100% !important;
+        max-height: 500px !important;
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 1 / 1 !important;
+    }
+}
+
+
